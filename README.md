@@ -31,19 +31,46 @@ account; confirmed PAYG sessions clear stale subscription quota.
 
 Requires Herdr 0.8.0+, Rust 1.95+, macOS or Linux, and at least one supported agent CLI.
 
+### From GitHub (recommended)
+
+```sh
+herdr plugin install sunholo-data/herdr-agent-quota
+herdr plugin action invoke configure --plugin herdr-agent-quota
+```
+
+Herdr clones the repository and builds it with `cargo build --release`; the
+`configure` action then adds the sidebar rows and agent hooks (including the
+Claude Code `statusLine`). Restart already-running agent panes once.
+
+To update, reinstall (Herdr 0.8 has no in-place plugin update; settings in the
+plugin config directory are kept):
+
+```sh
+herdr plugin uninstall herdr-agent-quota
+herdr plugin install sunholo-data/herdr-agent-quota
+herdr plugin action invoke configure --plugin herdr-agent-quota
+```
+
+### From a local clone
+
+Use this to pick a subset of agents or set options at install time:
+
 ```sh
 git clone https://github.com/sunholo-data/herdr-agent-quota.git
 cd herdr-agent-quota
-./install.sh
+./install.sh                          # or: ./install.sh --agent claude,codex,omp
 ```
 
-Restart already-running agent panes once. To install only a subset:
+`install.sh` builds the clone, links it with `herdr plugin link`, and runs
+`configure`; update by `git pull` and re-running it. Supported `--agent`
+values: `all`, `claude`, `codex`, `grok`, `agy`, `opencode`, `pi`, `omp`.
+Run `./install.sh --help` for the other options.
 
-```sh
-./install.sh --agent claude,codex,omp
-```
+### Moving from `levi-qiao/herdr-agent-quota`
 
-Supported values: `all`, `claude`, `codex`, `grok`, `agy`, `opencode`, `pi`, `omp`.
+The upstream repository is gone, so an existing install can no longer be
+refreshed from it. Run the reinstall steps above to switch it over; your
+settings in the plugin config directory are kept.
 
 ## Settings
 
