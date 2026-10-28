@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # Security-relevant: the plugin sends bearer tokens to provider billing
+  # endpoints (ureq/rustls). Grouped so a week's bumps land as one PR.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

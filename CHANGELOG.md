@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Update the TLS stack used for the Grok and OpenCode Go billing requests,
+  which carry bearer tokens: `rustls` 0.23.43 → 0.23.46 (RUSTSEC-2026-0285,
+  -0346, -0348, -0349), `rustls-webpki` 0.103.14 → 0.103.16
+  (RUSTSEC-2026-0382), and `webpki-roots` 1.0.9 → 1.0.11 (RUSTSEC-2026-0381).
+
+### Changed
+
+- Maintained as a fork at `sunholo-data/herdr-agent-quota` after the upstream
+  repository became unavailable; install instructions updated accordingly.
+- Dependabot now proposes weekly grouped updates for Cargo and GitHub Actions.
+
 ## [1.3.0] - 2026-09-01
 
 ### Added
