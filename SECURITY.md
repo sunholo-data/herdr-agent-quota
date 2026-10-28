@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Report privately through
-[GitHub Security Advisories](https://github.com/levi-qiao/herdr-agent-quota/security/advisories/new).
+[GitHub Security Advisories](https://github.com/sunholo-data/herdr-agent-quota/security/advisories/new).
 Please do not open a public issue for a vulnerability. Expect a first response
 within 7 days.
 

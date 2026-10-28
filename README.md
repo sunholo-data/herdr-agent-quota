@@ -2,9 +2,17 @@
 
 Credential-scoped model, context, cache, and quota data in Herdr's Agent sidebar.
 
-[![CI](https://github.com/levi-qiao/herdr-agent-quota/actions/workflows/ci.yml/badge.svg)](https://github.com/levi-qiao/herdr-agent-quota/actions/workflows/ci.yml)
+[![CI](https://github.com/sunholo-data/herdr-agent-quota/actions/workflows/ci.yml/badge.svg)](https://github.com/sunholo-data/herdr-agent-quota/actions/workflows/ci.yml)
 [![Rust](https://img.shields.io/badge/built%20with-Rust-dea584?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+> **Maintained fork.** This is a continuation of
+> [`levi-qiao/herdr-agent-quota`](https://github.com/levi-qiao/herdr-agent-quota) by Levi Qiao,
+> imported unchanged from upstream release 1.3.0 (commit `3b63f83`) after the original
+> repository and account stopped being available on GitHub. All credit for the plugin goes
+> to the original author; the MIT license and copyright notice are kept as-is.
+>
+> Install with `herdr plugin install sunholo-data/herdr-agent-quota`.
 
 中文文档：[README.zh-CN.md](README.zh-CN.md)
 
@@ -24,7 +32,7 @@ account; confirmed PAYG sessions clear stale subscription quota.
 Requires Herdr 0.8.0+, Rust 1.95+, macOS or Linux, and at least one supported agent CLI.
 
 ```sh
-git clone https://github.com/levi-qiao/herdr-agent-quota.git
+git clone https://github.com/sunholo-data/herdr-agent-quota.git
 cd herdr-agent-quota
 ./install.sh
 ```

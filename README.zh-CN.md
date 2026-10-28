@@ -2,7 +2,7 @@
 
 在 Herdr Agent 侧栏显示按凭据隔离的模型、上下文、缓存和订阅额度。
 
-[![CI](https://github.com/levi-qiao/herdr-agent-quota/actions/workflows/ci.yml/badge.svg)](https://github.com/levi-qiao/herdr-agent-quota/actions/workflows/ci.yml)
+[![CI](https://github.com/sunholo-data/herdr-agent-quota/actions/workflows/ci.yml/badge.svg)](https://github.com/sunholo-data/herdr-agent-quota/actions/workflows/ci.yml)
 [![Rust](https://img.shields.io/badge/built%20with-Rust-dea584?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -23,7 +23,7 @@ English: [README.md](README.md)
 要求：Herdr 0.8.0+、Rust 1.95+、macOS 或 Linux，以及至少一个受支持的 agent CLI。
 
 ```sh
-git clone https://github.com/levi-qiao/herdr-agent-quota.git
+git clone https://github.com/sunholo-data/herdr-agent-quota.git
 cd herdr-agent-quota
 ./install.sh
 ```
