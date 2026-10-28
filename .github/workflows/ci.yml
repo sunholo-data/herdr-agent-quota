@@ -25,7 +25,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # rust-toolchain.toml pins the version, so rustup installs it with the
       # rustfmt and clippy components this workflow needs.
@@ -53,7 +53,7 @@ jobs:
     name: dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-audit
       - run: cargo audit --deny warnings
@@ -62,7 +62,7 @@ jobs:
     name: plugin manifest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Herdr refuses to load a plugin whose root manifest is missing or
       # malformed, so a broken manifest must fail here rather than on install.
       - name: Validate herdr-plugin.toml
