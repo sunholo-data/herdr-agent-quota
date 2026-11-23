@@ -140,7 +140,7 @@ herdr plugin action invoke refresh --plugin herdr-agent-quota
 | Claude Code | 5h + 7d | model, context, cache, recorded prompt-cache expiry |
 | OpenAI Codex | 5h + 7d | model, context, cache, estimated 30m cache TTL, summary |
 | Grok CLI | 7d or 30d | model, context, cache |
-| Agy / Antigravity | 5h + 7d | statusLine model, context, cache |
+| Agy / Antigravity | 5h + 7d (statusLine, else `agy -p /quota`) | statusLine model, context, cache |
 | OpenCode | OpenCode Go 5h + 7d; 30d in dashboard | exact local session model/context |
 | Pi | Canonical Codex quota on an exact account match | model, context, cache, supported TTL data |
 | omp (oh-my-pi) | OMP-normalized windows such as `5h`, `1d`, `7d`, `Monthly` | model, context, cache, supported TTL data |
@@ -153,6 +153,41 @@ usage cache remains authoritative; this plugin adds a one-minute process debounc
 
 The sidebar has short and long quota rows. OMP's common windows occupy those rows
 while retaining their labels; one normalized window is shown per row.
+
+## Agy quota without a statusLine
+
+Agy reports quota through its statusLine after a turn. When no Agy statusLine
+has reported, the plugin asks the CLI instead: `agy -p /quota`, a slash command
+Agy answers itself without a model call (about 2–4 s, network). It runs with
+stdin from `/dev/null`, a cleared environment, `AGY_CLI_DISABLE_AUTO_UPDATE=true`
+so it can never self-update, and a 30-second hard limit. It is debounced to once
+a minute; the manual refresh action forces it.
+
+`/quota` reports percent **remaining** for two pools (Gemini, and Claude/GPT).
+It cannot say which pool a pane is using, so each of the 5h and 7d rows shows the
+tighter pool. Values are stored as used = 100 − remaining, like every other
+collector; the `Percentages` setting chooses which side the sidebar shows. A
+signed-out CLI shows no quota, never 0% or 100%.
+
+Agy keeps one sign-in per `HOME`, so the `HOME` that command runs under decides
+whose quota you see. It defaults to your own home. To read another sign-in, for
+example a dedicated subscription home, write it to the plugin config directory:
+
+```sh
+dir="$(herdr plugin config-dir herdr-agent-quota)"
+printf '%s\n' "$HOME/.ailang/state/agy/subscription" > "$dir/agy-home"
+printf '%s\n' "$HOME/.local/bin/agy" > "$dir/agy-bin"   # optional
+herdr plugin action invoke refresh --plugin herdr-agent-quota
+```
+
+or pass `--agy-home` / `--agy-bin` to `./install.sh`. Paths must be absolute or
+start with `~/`. For a direct CLI run, `HERDR_AGENT_QUOTA_AGY_HOME` and
+`HERDR_AGENT_QUOTA_AGY_BIN` override the files. The executable defaults to `agy`
+on `PATH`, then `~/.local/bin/agy`.
+
+A configured home outranks the statusLine: it is your choice of account, while
+the statusLine reports whichever Agy pane ticked last. Delete the `agy-home` file
+to go back to the statusLine. A full `./uninstall.sh` forgets both files.
 
 ## Herdr integrations
 
@@ -180,14 +215,15 @@ herdr integration install omp
 | OpenCode, Pi, or OMP is blank | Run `herdr integration status`, install the missing integration, then restart that pane. |
 | OMP has model/context but no quota | Run `omp usage --json --redact --provider <id>` and confirm a report exists. |
 | Herdr cannot execute OMP | Put `omp` on the server's `PATH`, or set `HERDR_AGENT_QUOTA_OMP_BIN`. |
-| Claude or Agy shows `N/A` | Send one turn so its statusLine emits a snapshot. |
+| Claude or Agy shows `N/A` | Send one turn so its statusLine emits a snapshot. For Agy, also run `HOME=<agy home> AGY_CLI_DISABLE_AUTO_UPDATE=true agy -p /quota </dev/null` and check it prints quota rows rather than a sign-in prompt. |
+| Agy shows another account's quota | Set `agy-home` in the plugin config directory (see above). |
 | Rows do not appear | Run `herdr plugin action invoke configure --plugin herdr-agent-quota`, then restart affected panes. |
 | A value survives a provider outage | Expected: the same account's last good snapshot is retained. |
 | Packed rows are truncated | Switch to `stacked`; Herdr does not wrap sidebar tokens. |
 
 ## Safety
 
-- No prompt or model request is generated.
+- No prompt or model request is generated. Agy's `/quota` is a CLI slash command, not a model turn.
 - Events read only their named pane with `--source visible`; refresh and watch do not read panes.
 - Credentials remain in the owning CLI. Snapshots hold sanitized usage and hashed attribution only.
 - OMP's `agent.db` is never opened; quota comes only from OMP CLI output.

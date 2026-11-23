@@ -12,6 +12,7 @@
 #   ./install.sh --brand-colors off
 #   ./install.sh --agent-order quota
 #   ./install.sh --low-quota-alert 10
+#   ./install.sh --agy-home ~/.ailang/state/agy/subscription
 #
 # --agent installs only the agents you name (all, claude, codex, grok, agy,
 # opencode, pi, omp). Anything you leave out gets no sidebar row, no statusLine
@@ -41,7 +42,13 @@
 # per provider, when its remaining quota falls to that number or below, and
 # again only after it has recovered above it.
 #
-# Everything here can also be changed later in the Agent quota settings pane.
+# --agy-home picks whose Agy quota is read when no Agy statusLine has reported
+# one: Agy keeps one sign-in per HOME, and `agy -p /quota` runs under this one
+# (default: your own home). A configured home also outranks the statusLine.
+# --agy-bin points at the agy executable (default: agy on PATH, then
+# ~/.local/bin/agy). Both are read at refresh time, not by the settings pane.
+#
+# Everything else here can also be changed later in the Agent quota settings pane.
 #
 # Every option is written to the plugin config directory before configure runs.
 # Herdr executes a plugin action with a fixed command line in the server's own
@@ -64,6 +71,8 @@ FIELDS=""
 BRAND_COLORS=""
 AGENT_ORDER=""
 LOW_QUOTA_ALERT=""
+AGY_HOME=""
+AGY_BIN=""
 
 while (($# > 0)); do
   case "$1" in
@@ -112,8 +121,18 @@ while (($# > 0)); do
       LOW_QUOTA_ALERT="$2"
       shift 2
       ;;
+    --agy-home)
+      (($# >= 2)) || { printf 'error: missing value for %s\n' "$1" >&2; exit 1; }
+      AGY_HOME="$2"
+      shift 2
+      ;;
+    --agy-bin)
+      (($# >= 2)) || { printf 'error: missing value for %s\n' "$1" >&2; exit 1; }
+      AGY_BIN="$2"
+      shift 2
+      ;;
     -h|--help)
-      sed -n '2,53p' "$0"
+      sed -n '2,59p' "$0"
       exit 0
       ;;
     *)
@@ -159,6 +178,16 @@ case "$LOW_QUOTA_ALERT" in
     || die "low-quota-alert must be off or a percentage from 0 to 100" ;;
 esac
 # The field list is validated by configure, which owns the field names.
+# Agy paths are read at refresh time, so a typo would only show up later as a
+# missing quota; check them now instead.
+if [[ -n "$AGY_HOME" ]]; then
+  [[ "$AGY_HOME" = /* ]] || die "agy-home must be an absolute path"
+  [[ -d "$AGY_HOME" ]] || die "agy-home $AGY_HOME is not a directory"
+fi
+if [[ -n "$AGY_BIN" ]]; then
+  [[ "$AGY_BIN" = /* ]] || die "agy-bin must be an absolute path"
+  [[ -x "$AGY_BIN" ]] || die "agy-bin $AGY_BIN is not an executable file"
+fi
 
 printf '%s\n' '→ building herdr-agent-quota'
 cargo build --release --locked --manifest-path "$ROOT/Cargo.toml"
@@ -189,6 +218,8 @@ write_plugin_pref fields "$FIELDS"
 write_plugin_pref brand-colors "$BRAND_COLORS"
 write_plugin_pref agent-order "$AGENT_ORDER"
 write_plugin_pref low-quota-alert "$LOW_QUOTA_ALERT"
+write_plugin_pref agy-home "$AGY_HOME"
+write_plugin_pref agy-bin "$AGY_BIN"
 
 printf '%s\n' '→ installing reversible sidebar and provider collectors'
 invoke_action_and_wait configure || die "configuration action failed"

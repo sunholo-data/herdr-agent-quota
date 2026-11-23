@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Agy quota no longer depends on a statusLine having ticked. When no Agy
+  statusLine has reported, the plugin reads `agy -p /quota`, a slash command
+  Agy answers without a model call, and shows the 5h and 7d windows from it.
+  The rows are percent remaining per pool (Gemini, Claude/GPT); each window
+  shows the tighter pool and is stored as used = 100 − remaining. The command
+  runs with a cleared environment, stdin from `/dev/null`,
+  `AGY_CLI_DISABLE_AUTO_UPDATE=true`, and a 30-second hard limit, debounced to
+  once a minute like the other collectors. A signed-out CLI shows no quota rather than 0% or 100%.
+- The Agy `HOME` is configurable, because Agy keeps one sign-in per `HOME`:
+  the `agy-home` file in the plugin config directory, `./install.sh
+  --agy-home`, or `HERDR_AGENT_QUOTA_AGY_HOME` for a direct run. A configured
+  home outranks the statusLine. `agy-bin` / `--agy-bin` /
+  `HERDR_AGENT_QUOTA_AGY_BIN` set the executable (default: `agy` on `PATH`,
+  then `~/.local/bin/agy`).
+
 ## [1.3.1] - 2026-10-28
 
 ### Security

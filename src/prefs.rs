@@ -25,9 +25,13 @@ pub const FIELDS: &str = "fields";
 pub const BRAND_COLORS: &str = "brand-colors";
 pub const AGENT_ORDER: &str = "agent-order";
 pub const LOW_QUOTA_ALERT: &str = "low-quota-alert";
+/// `HOME` the Agy quota command runs under; Agy keeps one sign-in per `HOME`.
+pub const AGY_HOME: &str = "agy-home";
+/// Path to the `agy` executable used for `agy -p /quota`.
+pub const AGY_BIN: &str = "agy-bin";
 
 /// Every preference a full uninstall must forget.
-pub const ALL: [&str; 9] = [
+pub const ALL: [&str; 11] = [
     AGENTS,
     WATCH_INTERVAL_SECONDS,
     SIDEBAR_LAYOUT,
@@ -37,6 +41,8 @@ pub const ALL: [&str; 9] = [
     BRAND_COLORS,
     AGENT_ORDER,
     LOW_QUOTA_ALERT,
+    AGY_HOME,
+    AGY_BIN,
 ];
 
 fn directory() -> Option<PathBuf> {

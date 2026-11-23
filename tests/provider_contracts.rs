@@ -1,6 +1,6 @@
 use herdr_agent_quota::model::{BillingTarget, ResetAt, WindowKind};
 use herdr_agent_quota::presentation::MetadataTokens;
-use herdr_agent_quota::providers::{agy, claude, codex, grok, omp};
+use herdr_agent_quota::providers::{agy, agy_quota, claude, codex, grok, omp, ProviderError};
 use serde_json::Value;
 
 fn fixture(value: &str) -> Value {
@@ -98,6 +98,48 @@ fn agy_fixture_aggregates_gemini_and_third_party_windows() {
             .abs()
             < 1e-9
     );
+}
+
+/// Recorded from a live `agy -p /quota` (agy 1.5.15, Google AI Ultra,
+/// 2026-11-23). The columns are percent REMAINING per pool and window.
+#[test]
+fn agy_quota_fixture_reads_remaining_as_remaining_for_both_windows() {
+    let output = include_str!("fixtures/agy/quota-signed-in.tsv");
+    let snapshot = agy_quota::parse_quota(output, 1).unwrap();
+    assert_eq!(snapshot.windows.len(), 2);
+    // Gemini is the tighter pool in both windows (95% and 97% left against
+    // Claude/GPT's 100%), so it speaks for each row.
+    let five_hour = snapshot.window(WindowKind::FiveHour).unwrap();
+    assert_eq!(five_hour.remaining_percent, 95.0);
+    assert_eq!(five_hour.used_percent, 5.0);
+    assert_eq!(
+        five_hour.resets_at,
+        ResetAt::parse_rfc3339("2026-11-23T19:09:17Z")
+    );
+    let weekly = snapshot.window(WindowKind::Weekly).unwrap();
+    assert_eq!(weekly.remaining_percent, 97.0);
+    assert_eq!(
+        weekly.resets_at,
+        ResetAt::parse_rfc3339("2026-11-30T14:09:17Z")
+    );
+}
+
+/// Agy asks for a login in prose, sometimes with exit status 0. Neither form
+/// may become a percentage.
+#[test]
+fn agy_quota_signed_out_fixtures_are_missing_credentials() {
+    for output in [
+        include_str!("fixtures/agy/quota-not-signed-in.txt"),
+        include_str!("fixtures/agy/quota-auth-required.txt"),
+    ] {
+        assert!(
+            matches!(
+                agy_quota::parse_quota(output, 1),
+                Err(ProviderError::MissingCredentials)
+            ),
+            "{output:?}"
+        );
+    }
 }
 
 /// Recorded from a live `omp usage --json --redact` (omp 18.0.11) against a

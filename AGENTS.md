@@ -104,7 +104,7 @@ writes a stop marker so a detached watcher cannot survive a restore.
 
 Every other collector either reads a local credential and calls the provider
 (`codex`, `grok`, `opencode_go`) or waits for a statusLine hook (`claude`,
-`agy`). omp is the exception: it keeps its own credential store and ships its
+`agy`) — except that `agy` falls back to its own CLI; see the next section. omp is the exception: it keeps its own credential store and ships its
 own usage layer, so `src/providers/omp.rs` shells out to
 `omp usage --json --provider <id>` and reads the answer.
 
@@ -135,6 +135,30 @@ report's identity. That digest is omp's persisted contract — if it changes
 upstream, every pin is orphaned and multi-account panes silently fall back to
 "no quota". The pinned-digest test exists to make that a test failure rather
 than a wrong number.
+
+## Agy's `/quota` fallback
+
+`src/providers/agy_quota.rs` runs `agy -p /quota` when no Agy statusLine
+observation exists, or always when an Agy home is configured
+(`HERDR_AGENT_QUOTA_AGY_HOME`, else the `agy-home` pref). What holds it together:
+
+1. **It never runs a model.** `/quota` is a slash command the CLI answers
+   itself. If a future Agy stops recognising it, `-p` would send the text to a
+   model instead, so watch for that on an Agy upgrade.
+2. **The child gets nothing of ours.** The environment is cleared and only
+   `HOME`, `PATH=/usr/bin:/bin` and `AGY_CLI_DISABLE_AUTO_UPDATE=true` are set:
+   an inherited `GEMINI_API_KEY` would switch Agy to its key route, and any
+   Agy call without the update guard can replace the CLI. stdin is
+   `/dev/null`; `process::run_program_with_deadline` kills the process group at
+   30 seconds.
+3. **`HOME` is the account.** Agy keeps one sign-in per `HOME`, so a `/quota`
+   snapshot is stamped `agy-home:<path>` as its `account_id`, and switching
+   homes never keeps the previous home's numbers as "last good".
+4. **Fail closed.** A sign-in prompt (seen with exit status 0) is
+   `MissingCredentials`; a row that does not say "remaining" or "used", or whose
+   number is out of range, rejects the whole reading rather than being skipped,
+   because skipping it could hide the tighter pool. CLI output is never copied
+   into an error, since a login prompt carries a URL.
 
 ## Herdr state this plugin owns outside a pane
 

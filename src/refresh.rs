@@ -11,7 +11,7 @@ use crate::omp::OmpEvidence;
 use crate::opencode::OpenCodePaths;
 use crate::presentation::MetadataTokens;
 use crate::providers::statusline::enrich_cache_session;
-use crate::providers::{codex, grok, omp as omp_provider, opencode_go};
+use crate::providers::{agy_quota, codex, grok, omp as omp_provider, opencode_go};
 use crate::route;
 use anyhow::{Context, Result};
 use serde::Serialize;
@@ -560,7 +560,8 @@ fn refresh_provider(
     let fetched = match provider {
         Provider::Codex => codex::fetch_for_sessions(&session_ids).map(FetchedSnapshot::direct),
         Provider::Grok => grok::fetch_for_sessions(&session_ids).map(FetchedSnapshot::direct),
-        Provider::Claude | Provider::Agy => load_statusline_snapshot(cache, provider),
+        Provider::Claude => load_statusline_snapshot(cache, provider),
+        Provider::Agy => fetch_agy(cache, now),
         // OpenCode Go is fetched for a resolved pane, never through the
         // provider list; see `fetch_opencode_go`.
         Provider::OpenCodeGo | Provider::Omp => Err(anyhow::anyhow!(
@@ -577,7 +578,7 @@ fn refresh_provider(
             } = fetched;
             if preserve_context {
                 cache.save_preserving_context_for_session(snapshot, session_id.as_deref())?;
-            } else if matches!(provider, Provider::Codex | Provider::Grok) {
+            } else if matches!(provider, Provider::Codex | Provider::Grok | Provider::Agy) {
                 let (_, mtime) = current_account_gate(provider);
                 cache.save_preserving_diagnostics_for_sessions(
                     &mut snapshot,
@@ -646,8 +647,32 @@ fn current_account_gate(provider: Provider) -> (Option<String>, Option<u64>) {
             (account_id, mtime)
         }
         Provider::Codex => (codex::current_account_id(), codex::auth_mtime_unix()),
-        Provider::Claude | Provider::Agy | Provider::OpenCodeGo | Provider::Omp => (None, None),
+        // The Agy home is the credential scope of a `/quota` snapshot. A
+        // statusLine snapshot carries no stamp and stays usable either way.
+        Provider::Agy => (agy_quota::current_account_id(), None),
+        Provider::Claude | Provider::OpenCodeGo | Provider::Omp => (None, None),
     }
+}
+
+/// Agy quota: the statusLine observation when there is one, else `agy -p
+/// /quota`.
+///
+/// A configured Agy home reverses that order. It names whose quota to show,
+/// and a statusLine observation comes from whichever Agy pane ticked last,
+/// which may be signed in to a different account — letting it win would make
+/// the setting silently do nothing.
+fn fetch_agy(cache: &CacheStore, now_unix: u64) -> Result<FetchedSnapshot> {
+    // Presence, not validity: a configured home that does not resolve must
+    // surface as an error, not quietly fall back to the statusLine.
+    if !agy_quota::home_is_configured() {
+        if let Ok(fetched) = load_statusline_snapshot(cache, Provider::Agy) {
+            return Ok(fetched);
+        }
+    }
+    let source = agy_quota::QuotaSource::resolve()?;
+    Ok(FetchedSnapshot::direct(agy_quota::fetch(
+        &source, now_unix,
+    )?))
 }
 
 fn load_statusline_snapshot(cache: &CacheStore, provider: Provider) -> Result<FetchedSnapshot> {
@@ -1005,6 +1030,54 @@ mod tests {
             Some(started - Duration::from_secs(1))
         ));
         assert!(!watch_binary_is_newer(started, None));
+    }
+
+    /// The statusLine speaks for Agy until an Agy home is configured; then the
+    /// configured home's `/quota` does, or the setting would silently do
+    /// nothing whenever any Agy pane had ticked.
+    #[test]
+    fn a_configured_agy_home_outranks_the_statusline_observation() {
+        use std::os::unix::fs::PermissionsExt;
+        let state = tempdir().unwrap();
+        let config = tempdir().unwrap();
+        let home = tempdir().unwrap();
+        let cache = CacheStore::new(state.path());
+        let observed = ProviderSnapshot::new(
+            Provider::Agy,
+            vec![UsageWindow::new(WindowKind::Weekly, 50.0, None).unwrap()],
+            1,
+        );
+        cache
+            .save_statusline_observation(Provider::Agy, observed, &serde_json::json!({}))
+            .unwrap();
+        let agy = home.path().join("agy");
+        std::fs::write(
+            &agy,
+            "#!/bin/sh\nprintf 'Gemini Models\\tWeekly Limit Remaining\\t97%%\\t2026-11-30T14:09:17Z\\n'\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&agy, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let weekly_used = |fetched: FetchedSnapshot| {
+            fetched
+                .snapshot
+                .window(WindowKind::Weekly)
+                .unwrap()
+                .used_percent
+        };
+
+        crate::prefs::testing::with_config_dir(config.path(), || {
+            crate::prefs::write(crate::prefs::AGY_BIN, &agy.display().to_string()).unwrap();
+            assert_eq!(weekly_used(fetch_agy(&cache, 2).unwrap()), 50.0);
+
+            crate::prefs::write(crate::prefs::AGY_HOME, &home.path().display().to_string())
+                .unwrap();
+            let fetched = fetch_agy(&cache, 2).unwrap();
+            assert_eq!(
+                fetched.snapshot.account_id.as_deref(),
+                Some(format!("agy-home:{}", home.path().display()).as_str())
+            );
+            assert_eq!(weekly_used(fetched), 3.0);
+        });
     }
 
     #[test]

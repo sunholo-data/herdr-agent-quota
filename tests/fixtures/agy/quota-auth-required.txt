@@ -1,0 +1,2 @@
+Authentication required. Please visit the URL to log in:
+https://accounts.example.invalid/o/oauth2/auth?redacted

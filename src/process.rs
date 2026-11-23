@@ -36,15 +36,7 @@ pub fn run_shell_with_deadline(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
-    #[cfg(unix)]
-    unsafe {
-        child.pre_exec(|| {
-            if libc::setpgid(0, 0) == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            Ok(())
-        });
-    }
+    own_process_group(&mut child);
 
     let mut child = child.spawn().context("run previous statusLine")?;
     let stdin = child
@@ -61,6 +53,56 @@ pub fn run_shell_with_deadline(
         let _ = stdin.write_all(&input);
     });
 
+    let output = collect_with_deadline(child, stdout, budget);
+    let _ = writer.join();
+    output.context("read previous statusLine output")
+}
+
+/// Run a program directly (no shell) with a hard wall-clock budget.
+///
+/// stdin is `/dev/null`, so a CLI that would otherwise wait for a login or a
+/// prompt sees end-of-file at once. stdout and stderr share one pipe because a
+/// CLI may report "not signed in" on either. The environment is exactly what
+/// the caller set on `command`; nothing is added here.
+pub fn run_program_with_deadline(mut command: Command, budget: Duration) -> Result<CommandOutput> {
+    let (reader, writer) = std::io::pipe().context("create output pipe")?;
+    let error_writer = writer.try_clone().context("share output pipe")?;
+    command
+        .stdin(Stdio::null())
+        .stdout(writer)
+        .stderr(error_writer);
+    own_process_group(&mut command);
+    let child = command.spawn().context("run program")?;
+    // `Command` still holds the parent's copies of the pipe's write end. They
+    // must close now, or reading would wait for this process instead of the
+    // child and never see end-of-file.
+    drop(command);
+    collect_with_deadline(child, reader, budget).context("read program output")
+}
+
+/// Put the child in a process group of its own, so a timeout can remove every
+/// helper it started along with it.
+fn own_process_group(command: &mut Command) {
+    #[cfg(unix)]
+    unsafe {
+        command.pre_exec(|| {
+            if libc::setpgid(0, 0) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    #[cfg(not(unix))]
+    let _ = command;
+}
+
+/// Drain `stdout` while a watchdog kills the child's process group once
+/// `budget` elapses, then reap the child.
+fn collect_with_deadline(
+    child: Child,
+    mut stdout: impl Read,
+    budget: Duration,
+) -> Result<CommandOutput> {
     let child = Arc::new(Mutex::new(Some(child)));
     let timed_out = Arc::new(AtomicBool::new(false));
     let (cancel, cancelled) = mpsc::channel();
@@ -73,15 +115,12 @@ pub fn run_shell_with_deadline(
         }
     });
 
-    let mut stdout = stdout;
     let mut output = Vec::new();
     let read_result = stdout.read_to_end(&mut output);
     let _ = cancel.send(());
     let status = terminate_and_reap(&child)?;
     let _ = watchdog.join();
-
-    let _ = writer.join();
-    read_result.context("read previous statusLine output")?;
+    read_result?;
 
     Ok(CommandOutput {
         stdout: output,
@@ -93,7 +132,7 @@ pub fn run_shell_with_deadline(
 fn terminate_and_reap(child: &Mutex<Option<Child>>) -> Result<Option<ExitStatus>> {
     let mut slot = child
         .lock()
-        .map_err(|_| anyhow::anyhow!("lock previous statusLine child"))?;
+        .map_err(|_| anyhow::anyhow!("lock child process"))?;
     let Some(mut child) = slot.take() else {
         return Ok(None);
     };
@@ -103,7 +142,7 @@ fn terminate_and_reap(child: &Mutex<Option<Child>>) -> Result<Option<ExitStatus>
         let _ = libc::killpg(child.id() as libc::pid_t, libc::SIGKILL);
     }
     let _ = child.kill();
-    child.wait().map(Some).context("reap previous statusLine")
+    child.wait().map(Some).context("reap child process")
 }
 
 #[cfg(test)]
@@ -118,6 +157,37 @@ mod tests {
         assert_eq!(result.stdout, b"done");
         assert_eq!(result.exit_code, Some(0));
         assert!(!result.timed_out);
+    }
+
+    #[test]
+    fn a_program_reports_stdout_and_stderr_in_one_stream_without_a_shell() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "printf out; printf err >&2; exit 3"]);
+        let result = run_program_with_deadline(command, Duration::from_secs(5)).unwrap();
+        assert_eq!(result.stdout, b"outerr");
+        assert_eq!(result.exit_code, Some(3));
+        assert!(!result.timed_out);
+    }
+
+    #[test]
+    fn a_program_reads_end_of_file_on_stdin_instead_of_waiting() {
+        let mut command = Command::new("/bin/cat");
+        command.env_clear();
+        let started = Instant::now();
+        let result = run_program_with_deadline(command, Duration::from_secs(5)).unwrap();
+        assert!(!result.timed_out);
+        assert!(result.stdout.is_empty());
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn a_program_that_exceeds_its_budget_is_killed() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "sleep 20 & wait"]);
+        let started = Instant::now();
+        let result = run_program_with_deadline(command, Duration::from_millis(100)).unwrap();
+        assert!(result.timed_out);
+        assert!(started.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
