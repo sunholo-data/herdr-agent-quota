@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-24
+
 ### Added
 
 - Agy quota no longer depends on a statusLine having ticked. When no Agy
@@ -22,6 +24,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   home outranks the statusLine. `agy-bin` / `--agy-bin` /
   `HERDR_AGENT_QUOTA_AGY_BIN` set the executable (default: `agy` on `PATH`,
   then `~/.local/bin/agy`).
+
+### Security
+
+- Bundled SQLite (used to read OpenCode and omp session databases): `rusqlite`
+  0.32.1 → 0.43.0, which moves `libsqlite3-sys` 0.30.1 → 0.40.0
+  (RUSTSEC-2026-0459, C SQLite CVE-2026-119375).
+- `url` 2.5.8 → 2.5.9 (RUSTSEC-2026-0592) and `rustix` 1.1.4 → 1.1.6
+  (RUSTSEC-2026-0486, unsound).
 
 ## [1.3.1] - 2026-10-28
 
@@ -546,7 +556,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A popup dashboard pane, event-driven refresh, and a local snapshot cache that
   survives provider failures.
 
-[Unreleased]: https://github.com/sunholo-data/herdr-agent-quota/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/sunholo-data/herdr-agent-quota/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/sunholo-data/herdr-agent-quota/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/sunholo-data/herdr-agent-quota/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/levi-qiao/herdr-agent-quota/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/levi-qiao/herdr-agent-quota/compare/v1.1.0...v1.2.0

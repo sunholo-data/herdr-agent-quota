@@ -290,10 +290,8 @@ fn used_percent(limit: &Value) -> Option<f64> {
         used / limit
     } else if amount.get("unit").and_then(Value::as_str) == Some("percent") {
         number("used")? / 100.0
-    } else if let Some(remaining) = number("remainingFraction") {
-        1.0 - remaining
     } else {
-        return None;
+        1.0 - number("remainingFraction")?
     };
     fraction
         .is_finite()
